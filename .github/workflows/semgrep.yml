@@ -1,0 +1,74 @@
+################################################################################################################################################
+#                                                                                                                                              #
+# Semgrep is an AppSec suite for finding bugs, detecting dependency vulnerabilities, and enforcing code standards. Its rules look like the     #
+# code you already write -- no abstract syntax trees, regex wrestling, or painful DSLs.                                                        #
+#                                                                                                                                              #
+# The Semgrep ecosystem includes:                                                                                                              #
+#                                                                                                                                              #
+# - Semgrep AppSec Platform     --  Deploy, manage, and monitor Code, Supply Chain, and Secrets at scale. Semgrep integrates with continuous   #
+#                                   integration (CI) providers such as GitHub, GitLab, CircleCI, and more.                                     #
+# - Semgrep Code                --  Scan your code with Semgrep to find OWASP Top 10 vulnerabilities and protect against critical security     #
+#                                   risks specific to your organization.                                                                       #
+# - Semgrep Secrets             --  Detect and validate leaked credentials in your codebase.                                                   #
+# - Semgrep Supply Chain (SSC)  --  A high-signal dependency scanner to reachable vulnerabilities in open source third-party libraries and     #
+#                                   functions.                                                                                                 #
+#                                                                                                                                              #
+# Demo developed by Emerson Xavier <emerson.xavier@keeggo.com>                                                                                 #
+#                                                                                                                                              #
+################################################################################################################################################
+
+name: Semgrep Analysis
+
+on:
+  workflow_dispatch:
+  pull_request:
+    branches: [ "master" ]
+  push:
+    branches: [ "master", "set-pipeline" ]
+
+jobs:
+  Semgrep-Analysis:
+    runs-on: ubuntu-latest
+    permissions:
+      actions: read
+      contents: read
+      security-events: write
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.11"]
+
+    steps:
+      # Check out source code
+      - name: Check Out Source Code
+        uses: actions/checkout@v4
+
+      # Python is required to run Semgrep utilities. Ensuring proper version is installed on the runner.
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v3
+        with:
+          python-version: ${{ matrix.python-version }}
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install semgrep
+          semgrep --version
+
+      # Perform Semgrep SAST + SCA scan and import results into GitHub Code scanning alerts
+      - name: Run Semgrep Scan
+        env: 
+          SEMGREP_APP_TOKEN: ${{ secrets.SEMGREP_APP_TOKEN }}
+        run: |
+          semgrep login
+          semgrep install-semgrep-pro
+          semgrep ci --pro --config="p/smart-contracts" --sarif-output=results.sarif --dataflow-traces
+
+      # Upload Semgrep results to GitHub Issues
+      - name: Upload SARIF file
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          # Path to SARIF file relative to the root of the repository
+          sarif_file: results.sarif
+          # Optional category for the results
+          # Used to differentiate multiple results for one commit
+          category: Semgrep
