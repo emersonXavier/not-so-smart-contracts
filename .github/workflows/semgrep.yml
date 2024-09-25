@@ -61,7 +61,7 @@ jobs:
         run: |
           semgrep login
           semgrep install-semgrep-pro
-          semgrep ci --pro --config="p/smart-contracts" --sarif-output=results.sarif --dataflow-traces
+          semgrep ci --pro --sarif-output=results.sarif --dataflow-traces
 
       # Upload Semgrep results to GitHub Issues
       - name: Upload SARIF file
